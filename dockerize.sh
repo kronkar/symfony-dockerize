@@ -1,14 +1,31 @@
-if ! command -v symfony &> /dev/null
-then
-    wget https://get.symfony.com/cli/installer -O - | bash
-    sudo mv ~/.symfony/bin/symfony /usr/local/bin/symfony
+#!/bin/bash
+if ! command -v symfony &>/dev/null; then
+  wget https://get.symfony.com/cli/installer -O - | bash
+  sudo mv ~/.symfony/bin/symfony /usr/local/bin/symfony
 fi
 
-path=$(basename $(pwd))
+path=""
+if [ "$1" == "" ]; then
+  while [[ -z "$path" ]]; do
+    read -p 'Introduzca el nombre del proyecto: ' path
+  done
+else
+  path=$1
+fi
+
+# shellcheck disable=SC2001
+# shellcheck disable=SC2006
+path=`echo "$path" | sed 's/ //g'`
+
+echo "* Creando proyecto" $path
+mkdir $path && cd $path
+
 ddbb="symfony_"$path"_db"
 
+echo "* Creando estructura del proyecto"
 mkdir docker docker/database docker/logs docker/nginx docker/php
 
+echo "* Creando docker-composer.yeml"
 cat <<EOF >./docker-compose.yml
 version: '3.4'
 services:
@@ -59,7 +76,8 @@ networks:
   symfony:
 EOF
 
-cat <<EOF > ./docker/nginx/default.conf
+echo "* Creando archivo de configuración nginx"
+cat <<EOF >./docker/nginx/default.conf
 server {
     listen 80;
     server_name localhost;
@@ -90,7 +108,8 @@ server {
 }
 EOF
 
-cat <<EOF > ./start.sh
+echo "* Creando script de inicio"
+cat <<EOF >./start.sh
 # shellcheck disable=SC2155
 export UID=$(id -u)
 export GID=$(id -g)
@@ -99,12 +118,14 @@ EOF
 
 chmod 755 ./start.sh
 
-cat <<EOF > ./docker/nginx/Dockerfile
+echo "* Creando archivo dockerfile de nginx"
+cat <<EOF >./docker/nginx/Dockerfile
 FROM nginx:latest
 COPY ./docker/nginx/default.conf /etc/nginx/conf.d/
 EOF
 
-cat <<EOF > ./docker/php/Dockerfile
+echo "* Creando archivo dockerfile de php"
+cat <<EOF >./docker/php/Dockerfile
 FROM php:7.4-fpm
 
 RUN apt update && apt install -y
@@ -125,5 +146,8 @@ COPY ./symfony /var/www/symfony
 WORKDIR /var/www/symfony
 EOF
 
+echo "* Instalado symfony"
 symfony new symfony --full
+
+echo "* Reemplanzando configuración de la BBDD en el archivo .env"
 sed -i 's/db_user:db_password@127.0.0.1:3306\/db_name/user:password@mysql:3306\/'$ddbb'/g' ./symfony/.env

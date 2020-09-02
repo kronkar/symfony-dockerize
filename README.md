@@ -1,2 +1,4 @@
 # symfony-dockerize
-Client for create symfony projects with dockers (php-fpm, mysql, nginx)
+Automatización para la creación de un proyecto Symfony + Docker (php-fpm, nginx mysql:5.7)
+
+
