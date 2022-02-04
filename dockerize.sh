@@ -13,6 +13,18 @@ else
   path=$1
 fi
 
+while [[ -z "$type" ]]; do
+  echo "Tipo de proyecto:"
+  echo "1) API"
+  echo "2) Full Web"
+  read -p 'Tipor de proyecto: ' type
+done
+case $type in
+  [1] ) symfony_type="";;
+  [2] ) symfony_type="--full";;
+  * ) echo "valor no valido"; exit;;
+esac
+
 # shellcheck disable=SC2001
 # shellcheck disable=SC2006
 path=`echo "$path" | sed 's/ //g'`
@@ -48,6 +60,8 @@ services:
       dockerfile: ./docker/php/Dockerfile
     environment:
       APP_ENV: dev
+      XDEBUG_CONFIG: \${XDEBUG_CONFIG_DOCKER}
+      PHP_IDE_CONFIG: serverName=$path
     volumes:
     - ./symfony/:/var/www/symfony
     - /etc/group:/etc/group:ro
@@ -110,10 +124,16 @@ EOF
 
 echo "* Creando script de inicio"
 cat <<EOF >./start.sh
-# shellcheck disable=SC2155
-export UID=$(id -u)
-export GID=$(id -g)
-docker-compose up -d
+ip="\$(hostname -I | awk '{print $1}')"
+uid="\$(id -u)"
+gid="\$(id -g)"
+xdebug="idekey=PHPSTORM remote_enable=1 remote_mode=req remote_host=${ip} remote_port=9000 remote_connect_back=0"
+
+export UID=\$uid
+export GID=\$gid
+export XDEBUG_CONFIG_DOCKER=\$xdebug
+sudo /etc/init.d/docker restart
+docker-compose up
 EOF
 
 chmod 755 ./start.sh
@@ -146,8 +166,8 @@ COPY ./symfony /var/www/symfony
 WORKDIR /var/www/symfony
 EOF
 
-echo "* Instalado symfony"
-symfony new symfony --full
+echo "* Instalado symfony con " $symfony_type
+symfony new symfony $symfony_type
 
 echo "* Reemplanzando configuración de la BBDD en el archivo .env"
 sed -i 's/db_user:db_password@127.0.0.1:3306\/db_name/user:password@mysql:3306\/'$ddbb'/g' ./symfony/.env
